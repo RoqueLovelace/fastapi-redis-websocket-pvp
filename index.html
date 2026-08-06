@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PvP Coin Flip - Raw</title>
+</head>
+<body>
+    <h1>Coin Flip PvP</h1>
+    <hr>
+
+    <h3>1. Login & Connect</h3>
+    Username: <input type="text" id="myUsername" value="PlayerOne">
+    <button onclick="loginAndConnect()">Login & Connect</button>
+    <br><br>
+    Token: <input type="text" id="jwtToken" size="50" readonly placeholder="Token will appear here after login">
+    <br><br>
+    User ID: <input type="text" id="myId" readonly placeholder="Auto-filled after login">
+
+    <hr>
+
+    <h3>2. Lobby</h3>
+    Stake: <input type="number" id="stakeValue" value="100">
+    Choice: 
+    <select id="coinChoice">
+        <option value="true">HEADS</option>
+        <option value="false">TAILS</option>
+    </select>
+    <button onclick="postChallenge()">Create Challenge</button>
+    <button onclick="loadLobby()">Refresh Lobby</button>
+    <br><br>
+
+    <table border="1" cellpadding="5">
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Username</th>
+                <th>Choice</th>
+                <th>Stake</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="lobbyBody">
+        </tbody>
+    </table>
+    <br>
+    <hr>
+
+    <h3>3. Leaderboard (Top 10)</h3>
+    <button onclick="loadLeaderboard()">Refresh Leaderboard</button>
+    <br><br>
+
+    <table border="1" cellpadding="5">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Username</th>
+                <th>Score</th>
+                <th>Streak</th>
+                <th>Max Streak</th>
+            </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+        </tbody>
+    </table>
+    <br>
+    <hr>
+
+    <h3>3. Console & Chat</h3>
+    <textarea id="consoleLogs" rows="15" cols="80" readonly></textarea>
+    <br><br>
+    
+    Send Message: <input type="text" id="msgText" size="30">
+    Receiver ID (Blank = Global): <input type="number" id="receiverId" size="5">
+    <button onclick="sendChat()">Send</button>
+
+    <script>
+        let ws = null;
+        let jwtToken = "";
+        let currentUserId = null;
+
+        const BASE_HTTP = "http://127.0.0.1:8000";
+        const BASE_WS = "ws://127.0.0.1:8000/ws/game";
+        const logs = document.getElementById("consoleLogs");
+
+        function logEvent(text) {
+            logs.value += text + "\n";
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        async function loginAndConnect() {
+            const username = document.getElementById("myUsername").value.trim();
+            if (!username) return alert("Enter Username");
+
+            try {
+                const response = await fetch(`${BASE_HTTP}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: username })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Login failed with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                jwtToken = data.access_token;
+                currentUserId = data.user.id;
+
+                document.getElementById("jwtToken").value = jwtToken;
+                document.getElementById("myId").value = currentUserId;
+
+                logEvent(`[SYS] Logged in as ${data.user.username} (ID: ${currentUserId})`);
+
+                connectWebSocket();
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+                logEvent(`[ERR] Login failed: ${err.message}`);
+            }
+        }
+
+        function connectWebSocket() {
+            if (!jwtToken) return alert("Login first");
+
+            if (ws) ws.close();
+            ws = new WebSocket(`${BASE_WS}?token=${encodeURIComponent(jwtToken)}`);
+
+            ws.onopen = () => logEvent(`[SYS] Connected to WS using JWT token`);
+            ws.onclose = () => logEvent("[SYS] Disconnected");
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === "new_message") {
+                    logEvent(`[CHAT] User ${data.sender_id}: ${data.text}`);
+                } 
+                else if (data.type === "game_result") {
+                    logEvent("\n==================================");
+                    logEvent(`GAME OVER! Coin Landed: ${data.coin_landed_heads ? "HEADS" : "TAILS"}`);
+                    logEvent(`Winner ID: ${data.winner_id}`);
+                    logEvent(`Loser ID: ${data.loser_id}`);
+                    logEvent(`Winner New Score: ${data.new_scores.winner}`);
+                    logEvent(`Loser New Score: ${data.new_scores.loser}`);
+                    logEvent("==================================\n");
+                    loadLobby();
+                }
+                else {
+                    logEvent(`[RAW] ${JSON.stringify(data)}`);
+                }
+            };
+        }
+
+        function sendChat() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return alert("Connect first");
+            
+            const text = document.getElementById("msgText").value;
+            const receiverRaw = document.getElementById("receiverId").value;
+            if (!text) return;
+
+            const payload = { action: "chat", text: text };
+            if (receiverRaw) payload.receiver_id = parseInt(receiverRaw);
+
+            ws.send(JSON.stringify(payload));
+            logEvent(`[ME] ${text}`);
+            document.getElementById("msgText").value = "";
+        }
+
+        async function loadLobby() {
+            const response = await fetch(`${BASE_HTTP}/lobby`);
+            const data = await response.json();
+            
+            const tbody = document.getElementById("lobbyBody");
+            tbody.innerHTML = "";
+            
+            data.challenges.forEach(c => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${c.user_id}</td>
+                    <td>${c.username}</td>
+                    <td>${c.is_heads ? "HEADS" : "TAILS"}</td>
+                    <td>${c.stake}</td>
+                    <td><button onclick="acceptChallenge(${c.user_id})">Accept Match</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            logEvent("[SYS] Lobby Refreshed");
+        }
+
+        async function postChallenge() {
+            if (!currentUserId) return alert("Login first");
+
+            const username = document.getElementById("myUsername").value;
+            const stake = parseInt(document.getElementById("stakeValue").value);
+            const isHeads = document.getElementById("coinChoice").value === "true";
+
+            const payload = {
+                user_id: currentUserId,
+                username: username,
+                is_heads: isHeads,
+                stake: stake
+            };
+
+            await fetch(`${BASE_HTTP}/lobby/challenge`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            logEvent(`[SYS] Posted challenge for ${stake} points`);
+            loadLobby();
+        }
+
+        function acceptChallenge(challengerId) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return alert("Connect first");
+            
+            ws.send(JSON.stringify({
+                action: "accept_challenge",
+                challenger_id: challengerId
+            }));
+            
+            logEvent(`[SYS] Sent acceptance to challenge from User ${challengerId}...`);
+        }
+
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch(`${BASE_HTTP}/leaderboard`);
+                const data = await response.json();
+
+                const tbody = document.getElementById("leaderboardBody");
+                tbody.innerHTML = "";
+
+                data.leaderboard.forEach((user, index) => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>#${index + 1}</td>
+                        <td>${user.username}</td>
+                        <td><strong>${user.score}</strong></td>
+                        <td>${user.streak}</td>
+                        <td>${user.max_streak}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                logEvent(`[SYS] Leaderboard Loaded (Source: ${data.source})`);
+            } catch (err) {
+                logEvent(`[ERR] Failed to load leaderboard: ${err.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
