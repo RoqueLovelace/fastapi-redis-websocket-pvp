@@ -9,7 +9,7 @@ import jwt
 from fastapi.responses import HTMLResponse
 import os
 
-import database
+import db as database
 import redis_manager
 import chat_manager
 import auth
