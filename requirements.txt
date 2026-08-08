@@ -6,3 +6,4 @@ pyjwt[crypto]>=2.8.0
 passlib[bcrypt]>=1.7.4
 python-dotenv>=1.0.0
 pydantic>=2.6.0
+sqlalchemy[asyncio]">=2.0.0
