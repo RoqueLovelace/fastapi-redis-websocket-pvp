@@ -1,11 +1,15 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio.engine import AsyncEngine
 
+import db.session as db_session
 import redis_client
 from db import close_db_pool, init_db_pool
 from game.router import router as game_router
@@ -45,6 +49,18 @@ app.include_router(users_router)
 app.include_router(game_router)
 app.include_router(leaderboard_router)
 app.include_router(ws_router)
+
+
+@app.get("/healthz")
+async def healthz():
+  try:
+    engine = cast(AsyncEngine, db_session.engine)
+    async with engine.connect() as conn:
+      await conn.execute(text("SELECT 1"))
+    await redis_client.get_redis().ping()
+  except Exception:
+    return JSONResponse(status_code=503, content={"status": "unhealthy"})
+  return {"status": "ok"}
 
 
 @app.get("/", response_class=HTMLResponse)

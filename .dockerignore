@@ -1,0 +1,16 @@
+**/__pycache__
+**/*.pyc
+.venv
+.git
+.gitignore
+.env
+.env.example
+.pytest_cache
+tests
+conftest.py
+pytest.ini
+.github
+pvp_diagram.png
+readme.md
+compose.yaml
+compose.override.yaml
