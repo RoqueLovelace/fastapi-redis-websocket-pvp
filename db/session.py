@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
   AsyncEngine,
@@ -9,6 +11,8 @@ from sqlalchemy.ext.asyncio import (
 from core.config import settings
 
 from .models import Base
+
+logger = logging.getLogger(__name__)
 
 _raw_url = settings.DATABASE_URL
 if _raw_url.startswith("postgresql://"):
@@ -24,7 +28,7 @@ async_session_maker: async_sessionmaker[AsyncSession] | None = None
 
 async def init_db_pool():
   global engine, async_session_maker
-  print("[INFO] Initializing Database Pool...")
+  logger.info("Initializing database pool")
 
   engine = create_async_engine(DATABASE_URL, pool_size=1, max_overflow=9)
   async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -34,7 +38,7 @@ async def init_db_pool():
     await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
     await conn.run_sync(Base.metadata.create_all)
 
-  print("[INFO] Database pool initialized.")
+  logger.info("Database pool initialized")
 
 
 async def close_db_pool() -> None:
