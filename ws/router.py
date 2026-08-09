@@ -37,7 +37,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
           continue
 
         receiver_id = payload.get("receiver_id")
-        await chat_service.send_message(sender_id=user_id, text=text, receiver_id=receiver_id)
+        try:
+          await chat_service.send_message(sender_id=user_id, text=text, receiver_id=receiver_id)
+        except ValueError as exc:
+          await websocket.send_text(json.dumps({"error": str(exc)}))
 
       elif action == "accept_challenge":
         challenger_id = payload.get("challenger_id")
@@ -45,7 +48,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
           await websocket.send_text(json.dumps({"error": "Invalid challenger ID"}))
           continue
 
-        result = await game_service.resolve_challenge(challenger_id=challenger_id, accepter_id=user_id)
+        try:
+          result = await game_service.resolve_challenge(challenger_id=challenger_id, accepter_id=user_id)
+        except RuntimeError as exc:
+          await websocket.send_text(json.dumps({"error": str(exc)}))
+          continue
+
         if result is None:
           await websocket.send_text(json.dumps({"error": "Challenge no longer exists!"}))
 
