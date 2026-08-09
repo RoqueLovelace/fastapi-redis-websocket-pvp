@@ -9,6 +9,7 @@
 
     <h3>1. Login & Connect</h3>
     Username: <input type="text" id="myUsername" value="PlayerOne">
+    Password: <input type="password" id="myPassword" value="correcthorse123">
     <button onclick="loginAndConnect()">Login & Connect</button>
     <br><br>
     Token: <input type="text" id="jwtToken" size="50" readonly placeholder="Token will appear here after login">
@@ -88,13 +89,14 @@
 
         async function loginAndConnect() {
             const username = document.getElementById("myUsername").value.trim();
+            const password = document.getElementById("myPassword").value;
             if (!username) return alert("Enter Username");
-
+            if (!password || password.length < 8) return alert("Password must be at least 8 characters");
             try {
                 const response = await fetch(`${BASE_HTTP}/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: username })
+                    body: JSON.stringify({ username: username, password: password })
                 });
 
                 if (!response.ok) {
