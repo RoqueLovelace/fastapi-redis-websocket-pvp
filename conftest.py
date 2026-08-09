@@ -38,7 +38,7 @@ async def fake_redis():
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(fake_redis):
   transport = ASGITransport(app=app)
   async with AsyncClient(transport=transport, base_url="http://test") as ac:
     yield ac
