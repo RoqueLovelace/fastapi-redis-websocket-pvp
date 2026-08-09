@@ -1,3 +1,4 @@
+from enum import unique
 import uuid
 from datetime import datetime
 
@@ -28,7 +29,8 @@ class User(Base):
   public_id: Mapped[uuid.UUID] = mapped_column(
     UUID(as_uuid=True), server_default=text("gen_random_uuid()"), unique=True
   )
-  username: Mapped[str] = mapped_column(String(20), nullable=False)
+  username: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+  password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
   streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
   max_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
   max_score: Mapped[int] = mapped_column(Integer, nullable=False, default=500)

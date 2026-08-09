@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 
 from core.rate_limit import enforce_rate_limit
 from users.schemas import TokenResponse, UserLogin
-from users.service import login_or_register
+from users.service import InvalidCredentialsError, login_or_register
 
 router = APIRouter(tags=["users"])
 
@@ -11,4 +11,8 @@ router = APIRouter(tags=["users"])
 async def login(user_data: UserLogin, request: Request):
   client_ip = request.client.host if request.client else "unknown"
   await enforce_rate_limit(f"ratelimit:login:{client_ip}", limit=5, window_seconds=60)
-  return await login_or_register(user_data.username)
+
+  try:
+    return await login_or_register(user_data.username, user_data.password)
+  except InvalidCredentialsError:
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")

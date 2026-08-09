@@ -4,17 +4,27 @@ from .models import ChatMessage, Match, User
 from .session import get_session_maker
 
 
-async def get_or_create_user(username: str) -> dict:
+async def get_user_by_username(username: str) -> dict | None:
+  """Returns the full user record including password_hash, or None if no such user exists. Callers outside the auth layer must strip password_hash before it reaches a response."""
   session_maker = get_session_maker()
 
   async with session_maker() as session:
     result = await session.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
 
-    if user:
-      return user.to_public_dict()
+    if not user:
+      return None
 
-    user = User(username=username)
+    data = user.to_public_dict()
+    data["password_hash"] = user.password_hash
+    return data
+
+
+async def create_user(username: str, password_hash: str) -> dict:
+  session_maker = get_session_maker()
+
+  async with session_maker() as session:
+    user = User(username=username, password_hash=password_hash)
     session.add(user)
     await session.commit()
     await session.refresh(user)
