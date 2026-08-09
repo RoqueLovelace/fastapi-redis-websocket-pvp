@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import cast
@@ -11,12 +12,16 @@ from sqlalchemy.ext.asyncio.engine import AsyncEngine
 
 import db.session as db_session
 import redis_client
+from core.logging_config import configure_logging
 from db import close_db_pool, init_db_pool
 from game.router import router as game_router
 from leaderboard.router import router as leaderboard_router
 from users.router import router as users_router
 from ws.manager import redis_pubsub_listener
 from ws.router import router as ws_router
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -25,14 +30,14 @@ async def lifespan(app: FastAPI):
   await redis_client.init_redis_pool()
 
   listener_task = asyncio.create_task(redis_pubsub_listener())
-  print("[SERVER] FastAPI is ready to accept connections!")
+  logger.info("FastAPI is ready to accept connections")
 
   yield
 
   listener_task.cancel()
   await redis_client.close_redis_pool()
   await close_db_pool()
-  print("[SERVER] FastAPI shut down safely.")
+  logger.info("FastAPI shut down safely")
 
 
 app = FastAPI(lifespan=lifespan, title="Coin Flip PvP API")
