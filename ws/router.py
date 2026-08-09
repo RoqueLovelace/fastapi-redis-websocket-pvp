@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 import chat.service as chat_service
 import game.service as game_service
 import users.service as users_service
+from core.rate_limit import check_rate_limit
 from core.security import authenticate_websocket
 from ws.manager import manager
 
@@ -32,6 +33,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
       action = payload.get("action", "chat")
 
       if action == "chat":
+        allowed = await check_rate_limit(f"ratelimit:chat:{user_id}", limit=10, window_seconds=10)
+        if not allowed:
+          await websocket.send_text(json.dumps({"error": "You're sending messages too fast"}))
+          continue
+
         text = payload.get("text", "").strip()
         if not text:
           continue
@@ -43,6 +49,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
           await websocket.send_text(json.dumps({"error": str(exc)}))
 
       elif action == "accept_challenge":
+        allowed = await check_rate_limit(f"ratelimit:challenge:{user_id}", limit=5, window_seconds=10)
+        if not allowed:
+          await websocket.send_text(json.dumps({"error": "Too many challenge attempts, slow down"}))
+          continue
+
         challenger_id = payload.get("challenger_id")
         if not challenger_id or challenger_id == user_id:
           await websocket.send_text(json.dumps({"error": "Invalid challenger ID"}))
